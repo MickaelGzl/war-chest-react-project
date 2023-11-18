@@ -1,0 +1,216 @@
+.boardGame {
+  position: relative;
+}
+.boardGame > img {
+  height: 100vh;
+}
+
+/* player space is 220px on a 1743px board (7.923 more smaller*/
+/*
+50px padding right and left, 160px init, 
+726px casern with display flex justify center
+360px hand
+idem other hand, 726, 160, 50
+OHHHH la chance !! ça fait pile 2232
+*/
+.player {
+  position: absolute;
+  width: 100%;
+  height: calc(100vh / 7.923);
+  display: grid;
+  grid-template-columns:
+    calc(100% / 44.64)
+    calc(100% / 13.95)
+    calc(100% / 3.074)
+    calc(100% / 6.2)
+    calc(100% / 3.074)
+    calc(100% / 13.95)
+    calc(100% / 44.64);
+}
+.player2 {
+  top: 0;
+}
+.player1 {
+  top: calc(100vh - 100vh / 7.923);
+}
+.player > div {
+  width: 100%;
+  height: calc(100vh / 7.923);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.player > div > div {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.barrack > div {
+  flex-direction: column;
+  justify-content: center;
+}
+
+.initToken {
+  width: 100%;
+  height: auto;
+}
+.bagToken {
+  height: 50%;
+  width: auto;
+}
+.selectedUnit {
+  border: 2px solid #a6e897;
+  border-radius: 50%;
+}
+
+.boardToken {
+  height: 80%;
+}
+
+.pass {
+  color: #e2e2e2;
+  font-family: "Acme", sans-serif;
+  font-size: 0.8em;
+  text-align: center;
+  cursor: pointer;
+}
+
+.gameArea {
+  width: calc(10.15vh * 1.16);
+  height: 10.15vh;
+  clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+  /* background-color: darkred; */
+  position: absolute;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* .boardGame > div.control {
+  background-color: green;
+} */
+
+.l0 {
+  /* left: calc((100vh * 1.28054) / 10.43); */
+  left: calc((100vh * 1.28054) / 2.19 - ((100vh * 1.28054) / 13.95) * 5);
+}
+
+.l1 {
+  /*base margin (start of case, and add distance between each start of line) */
+  left: calc((100vh * 1.28054) / 2.19 - ((100vh * 1.28054) / 13.95) * 4);
+}
+
+.l2 {
+  left: calc((100vh * 1.28054) / 2.19 - ((100vh * 1.28054) / 13.95) * 3);
+}
+
+.l3 {
+  left: calc((100vh * 1.28054) / 2.19 - ((100vh * 1.28054) / 13.95) * 2);
+}
+
+.l4 {
+  left: calc((100vh * 1.28054) / 2.19 - (100vh * 1.28054) / 13.95);
+}
+
+.l5 {
+  left: calc((100vh * 1.28054) / 2.19);
+}
+
+.l6 {
+  left: calc((100vh * 1.28054) / 2.19 + (100vh * 1.28054) / 13.95);
+}
+
+.l7 {
+  left: calc((100vh * 1.28054) / 2.19 + ((100vh * 1.28054) / 13.95) * 2);
+}
+
+.l8 {
+  left: calc((100vh * 1.28054) / 2.19 + ((100vh * 1.28054) / 13.95) * 3);
+}
+
+.l9 {
+  left: calc((100vh * 1.28054) / 2.19 + ((100vh * 1.28054) / 13.95) * 4);
+}
+
+.l10 {
+  left: calc((100vh * 1.28054) / 2.19 + ((100vh * 1.28054) / 13.95) * 5);
+}
+
+.t0 {
+  top: calc(100vh / 2.22605 - (10.15vh + 0.5vh) * 3);
+}
+
+.t1 {
+  top: calc(100vh / 2.22605 - (10.15vh + 0.5vh) * 2.5);
+}
+
+.t2 {
+  top: calc(100vh / 2.22605 - (10.15vh + 0.5vh) * 2);
+}
+
+.t3 {
+  top: calc(100vh / 2.22605 - (10.15vh + 0.5vh) * 1.5);
+}
+
+.t4 {
+  /*t6 - case - margin*/
+  top: calc(100vh / 2.22605 - (10.15vh + 0.5vh));
+}
+.t5 {
+  /*t6 - case/2 - margin/2 */
+  top: calc(100vh / 2.22605 - (10.15vh + 0.5vh) * 0.5);
+}
+
+.t6 {
+  top: calc(100vh / 2.22605);
+}
+
+.t7 {
+  /*t6 + case/2 + margin/2 */
+  top: calc(100vh / 2.22605 + (10.15vh + 0.5vh) * 0.5);
+}
+
+.t8 {
+  /*t6 + case + margin*/
+  top: calc(100vh / 2.22605 + (10.15vh + 0.5vh));
+}
+
+.t9 {
+  top: calc(100vh / 2.22605 + (10.15vh + 0.5vh) * 1.5);
+}
+
+.t10 {
+  top: calc(100vh / 2.22605 + (10.15vh + 0.5vh) * 2);
+}
+
+.t11 {
+  top: calc(100vh / 2.22605 + (10.15vh + 0.5vh) * 2.5);
+}
+
+.t12 {
+  top: calc(100vh / 2.22605 + (10.15vh + 0.5vh) * 3);
+}
+
+.controlledBy2 {
+  background-image: url("/images/ravenToken.png");
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-blend-mode: multiply;
+}
+.controlledBy1 {
+  background-image: url("/images/wolfToken.png");
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-blend-mode: multiply;
+}
+.highlighten {
+  background-color: rgba(66, 180, 39, 0.2);
+  /* border: 4px solid #a6e897; */
+}
+.highlightenRed {
+  background-color: rgba(139, 0, 0, 0.2);
+}

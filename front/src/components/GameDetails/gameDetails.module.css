@@ -1,0 +1,50 @@
+.details {
+  margin: 1em;
+  /* background-color: green; */
+  display: grid;
+  grid-template-areas: "info info" "p2UnitInHold p2UnitLost" "p1UnitInHold p1UnitLost";
+  grid-template-rows: auto 2fr 2fr;
+}
+
+.details > div:not(:first-child) {
+  padding: 1em 0;
+  display: grid;
+  grid-template-rows: repeat(4, 1fr);
+  width: 100%;
+  max-height: 100%;
+}
+
+.details > div:first-child {
+  grid-area: info;
+  text-align: center;
+  max-height: fit-content;
+}
+.details > div:nth-child(2) {
+  grid-area: p2UnitInHold;
+}
+.details > div:nth-child(3) {
+  grid-area: p2UnitLost;
+}
+.details > div:nth-child(4) {
+  grid-area: p1UnitInHold;
+}
+.details > div:nth-child(5) {
+  grid-area: p1UnitLost;
+}
+
+.unitOnHold {
+  height: 80%;
+  align-self: center;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.unitOnHold > img {
+  max-height: 40px;
+  width: auto;
+}
+.unitOnHold > span {
+  font-size: large;
+  margin-left: 8px;
+  font-family: "Acme", sans-serif;
+}

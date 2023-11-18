@@ -1,0 +1,58 @@
+.layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.75);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #e0e0e0;
+}
+
+.title {
+  text-align: center;
+  font-size: 2em;
+  margin-bottom: 1em;
+}
+
+.selection {
+  width: 100vw;
+  height: calc(100vh - 7em);
+  padding: 0 10vw;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1em;
+}
+
+.selection > div {
+  position: relative;
+  height: calc((100vh - 8em) / 2);
+  width: calc((100vh - 8em) / 2 / 1.38385);
+  background-position: center;
+  background-size: cover;
+}
+
+.selection > div > span {
+  position: absolute;
+  font-family: "Acme", sans-serif;
+  font-size: 1.2em;
+}
+
+.selection > div > span:first-child {
+  top: 7%;
+  left: 42%;
+}
+
+.selection > div > span:nth-child(2) {
+  top: 28%;
+  left: 10.5%;
+}
+
+.selection > div > span:nth-child(3) {
+  font-size: 0.8em;
+  top: 70%;
+  left: 7%;
+  color: #000;
+}
