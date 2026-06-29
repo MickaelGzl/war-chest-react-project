@@ -15,7 +15,12 @@ const httpServer = http.createServer();
 const io = new Server(httpServer, {
   cors: {
     credentials: true,
-    origin: ["http://localhost:5173", "http://192.168.1.10:5173"],
+    origin: [
+      "http://localhost:5173",
+      "http://192.168.1.10:5173",
+      "http://localhost:5200",
+      "http://192.168.1.10:5200",
+    ],
     methods: ["GET", "POST"],
   },
 });
