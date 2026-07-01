@@ -1,3 +1,4 @@
+export {};
 // const unusedLines = [0, 1, 9, 10];
 // const controlCases = [
 //   "2_7",

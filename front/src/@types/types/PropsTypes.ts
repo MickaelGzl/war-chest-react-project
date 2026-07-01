@@ -16,8 +16,12 @@ export type BoardGamePropsType = {
   initAlreadyStole: boolean;
   socket: Socket;
   socketTurn: string;
-  // playerReTurn: [boolean, number | null];
   updateMessages: (arg0: MessageInterface) => void;
+  extraTurn: { socketId: string; areaId: number; type: "fantassin" | "mercenaire" | "moine"; drawnUnit?: UnitInterface } | null;
+  clearExtraTurn: () => void;
+  gardeRoyaleChoice: { attackerSocketId: string; areaId: number } | null;
+  onGardeRoyaleSacrifice: (areaId: number) => void;
+  onGardeRoyaleDecline: (areaId: number) => void;
 };
 
 export type ChatPropsType = {
@@ -58,6 +62,7 @@ export type ModalSelectOptionPropsType = {
     active: boolean;
     area?: AreaInterface;
     playerId?: number;
+    disableReinforce?: boolean;
   };
   updateModalSelection: (arg0: boolean) => void;
   updateAreaByMovementOfUnit: (

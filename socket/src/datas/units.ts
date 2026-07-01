@@ -112,4 +112,10 @@ export const units: UnitInterface[] = [
     cap: "après une attaque ou un contrôle, pioche une pièce du sac et l'utilise immédiatement pour n'importe quelle action",
     nb: 4,
   },
+  {
+    id: 17,
+    name: "Sceau Royal",
+    cap: "Déplacez votre Garde Royale d'au maximum 2 cases vers une zone que vous contrôlez.",
+    nb: 0,
+  },
 ];

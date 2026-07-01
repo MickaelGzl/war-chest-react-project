@@ -29,13 +29,17 @@ function ModalSelectOption(props: ModalSelectOptionPropsType) {
   //click on a button send a event to BoardGame, with a value (move, reinforce, control)
   //the function on boardGame use a switch and update in function
 
+  const unitName = modalSelectOption.area?.unitOnIt?.name;
+
   return (
     <div className={styles.calc} onClick={(e) => closeModal(e)}>
       <div className={styles.modal}>
         <button onClick={(e) => selectMovement(e, "move")}>Déplacer</button>
-        <button onClick={(e) => selectMovement(e, "reinforce")}>
-          Renforcer
-        </button>
+        {!modalSelectOption.disableReinforce && (
+          <button onClick={(e) => selectMovement(e, "reinforce")}>
+            Renforcer
+          </button>
+        )}
         {modalSelectOption.area?.controlPoint === true &&
           modalSelectOption.area.controlledBy !==
             modalSelectOption.playerId && (
@@ -43,6 +47,16 @@ function ModalSelectOption(props: ModalSelectOptionPropsType) {
               Contrôler
             </button>
           )}
+        {unitName === "Capitaine" && (
+          <button onClick={(e) => selectMovement(e, "ally-attack")}>
+            Faire attaquer un allié
+          </button>
+        )}
+        {unitName === "Porte étendard" && (
+          <button onClick={(e) => selectMovement(e, "ally-move")}>
+            Déplacer un allié
+          </button>
+        )}
         <button onClick={(e) => closeModal(e)}>Annuler</button>
       </div>
     </div>

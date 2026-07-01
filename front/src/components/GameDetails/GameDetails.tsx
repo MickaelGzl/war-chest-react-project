@@ -41,6 +41,11 @@ function GameDetails(props: GameDetailsPropsType) {
     return unitsToReturn;
   }
 
+  const getTokenSrc = (unitName: string, playerIdx: 1 | 2): string => {
+    if (unitName === "Sceau Royal") return `${tokenPath}p${playerIdx}_royal_token.png`;
+    return `${tokenPath}${unitName.toLowerCase().replaceAll(" ", "_")}.png`;
+  };
+
   return (
     <div className={styles.details}>
       <div>
@@ -58,9 +63,7 @@ function GameDetails(props: GameDetailsPropsType) {
         {onHoldUnits[1].map((unit, index) => (
           <div className={styles.unitOnHold} key={index}>
             <img
-              src={`${tokenPath}${unit.name
-                .toLowerCase()
-                .replaceAll(" ", "_")}.png`}
+              src={getTokenSrc(unit.name, 2)}
               alt={unit.name}
             />
             <span>{unit.nb}</span>
@@ -71,9 +74,7 @@ function GameDetails(props: GameDetailsPropsType) {
         {players[1].graveyard.map((lostedUnit, index) => (
           <div className={styles.unitOnHold} key={index}>
             <img
-              src={`${tokenPath}${lostedUnit.name
-                .toLowerCase()
-                .replaceAll(" ", "_")}.png`}
+              src={getTokenSrc(lostedUnit.name, 2)}
               alt={lostedUnit.name}
             />
             <span>{lostedUnit.nb}</span>
@@ -84,9 +85,7 @@ function GameDetails(props: GameDetailsPropsType) {
         {onHoldUnits[0].map((unit, index) => (
           <div className={styles.unitOnHold} key={index}>
             <img
-              src={`${tokenPath}${unit.name
-                .toLowerCase()
-                .replaceAll(" ", "_")}.png`}
+              src={getTokenSrc(unit.name, 1)}
               alt={unit.name}
             />
             <span>{unit.nb}</span>
@@ -97,9 +96,7 @@ function GameDetails(props: GameDetailsPropsType) {
         {players[0].graveyard.map((lostedUnit, index) => (
           <div className={styles.unitOnHold} key={index}>
             <img
-              src={`${tokenPath}${lostedUnit.name
-                .toLowerCase()
-                .replaceAll(" ", "_")}.png`}
+              src={getTokenSrc(lostedUnit.name, 1)}
               alt={lostedUnit.name}
             />
             <span>{lostedUnit.nb}</span>

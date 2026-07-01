@@ -1,6 +1,71 @@
 .boardGame {
   position: relative;
 }
+
+.winnerOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.winnerModal {
+  background: rgba(20, 20, 30, 0.97);
+  border: 2px solid #f0c040;
+  border-radius: 12px;
+  padding: 2em 3em;
+  text-align: center;
+  color: #f0c040;
+  font-family: "Acme", sans-serif;
+}
+
+.winnerModal h2 {
+  font-size: 2em;
+  margin: 0 0 0.4em;
+}
+
+.winnerModal p {
+  font-size: 1em;
+  color: #e2e2e2;
+  margin: 0;
+}
+
+.pendingLabel {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(20, 20, 30, 0.92);
+  color: #e2e2e2;
+  font-family: "Acme", sans-serif;
+  padding: 0.6em 1.2em;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5em;
+  z-index: 10;
+  pointer-events: all;
+}
+.pendingLabel span {
+  font-size: 0.9em;
+  text-align: center;
+}
+.pendingLabel button {
+  padding: 0.3em 0.8em;
+  border: 1px solid #a6e897;
+  background: transparent;
+  color: #a6e897;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.pendingLabel button:hover {
+  background: rgba(166, 232, 151, 0.15);
+}
 .boardGame > img {
   height: 100vh;
 }
@@ -50,6 +115,34 @@ OHHHH la chance !! ça fait pile 2232
 .barrack > div {
   flex-direction: column;
   justify-content: center;
+  position: relative;
+}
+
+.unitCard {
+  display: none;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 220px;
+  height: auto;
+  z-index: 200;
+  pointer-events: none;
+  border-radius: 6px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.8);
+}
+
+/* Player 1 (bottom) — card appears above */
+.player1 .barrack > div:hover .unitCard {
+  display: block;
+  bottom: 100%;
+  margin-bottom: 6px;
+}
+
+/* Player 2 (top) — card appears below */
+.player2 .barrack > div:hover .unitCard {
+  display: block;
+  top: 100%;
+  margin-top: 6px;
 }
 
 .initToken {

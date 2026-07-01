@@ -1,6 +1,6 @@
 import "./App.css";
 import BoardGame from "../../components/BoardGame/BoardGame";
-import { Suspense, lazy, useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import GameSelection from "../../components/GameSelection/GameSelection";
 import {
   PlayerInterface,
@@ -32,6 +32,30 @@ function App() {
   const [initiative, setInitiative] = useState(false); //true = p1 turn
   const [initAlreadyStole, setInitAlreadyStole] = useState(false);
   const [nbTurn, setNbTurn] = useState(0);
+  // Garde Royale: when attacked, the defender can sacrifice from unitOnHold
+  const [gardeRoyaleChoice, setGardeRoyaleChoice] = useState<{
+    attackerSocketId: string;
+    areaId: number;
+  } | null>(null);
+
+  // Prevents the Fantassin extra-turn from looping: locked while the second Fantassin acts
+  const fantassinExtraActiveRef = useRef(false);
+
+  // Moine chain: tracks the drawn unit that was last put in play so we can
+  // add it to unitOnHold and trigger a chain draw if it attacked/controlled.
+  const moineChainRef = useRef<{
+    socketId: string;
+    areaId: number;
+    drawnUnit: UnitInterface;
+  } | null>(null);
+
+  // Extra free turn: Fantassin second deploy, Mercenaire free action, Moine draw+play
+  const [extraTurn, setExtraTurn] = useState<{
+    socketId: string;
+    areaId: number;
+    type: "fantassin" | "mercenaire" | "moine";
+    drawnUnit?: UnitInterface;
+  } | null>(null);
   // const [playerReTurn, setPlayerReTurn] = useState<[boolean, number | null]>([
   //   false,
   //   null,
@@ -89,8 +113,10 @@ function App() {
     );
 
     socket.on("playerHandDone", (newPlayers: PlayerInterface[]) => {
-      if (players[0].hand.length === 0) {
-        // console.log("make hand: ", newPlayers);
+      // Accept both normal end-of-round refill (hand empty) and forced mid-round refill
+      const bothHandsEmpty = players[0].hand.length === 0 && players[1].hand.length === 0;
+      const forcedRefill = players.some((p) => p.hand.length === 0 && p.bag.length === 0);
+      if (bothHandsEmpty || forcedRefill) {
         setPlayers(newPlayers);
         setSocketTurn(initiative ? players[0].socketId : players[1].socketId);
         setInitAlreadyStole(false);
@@ -131,22 +157,28 @@ function App() {
         unitUsed: UnitInterface,
         recrutedUnit: UnitInterface
       ) => {
-        removePlayedUnitFromHand(
-          socketWhoPlayed,
-          unitUsed,
-          false,
-          recrutedUnit
-        );
-        setMessages([
-          ...messages,
-          {
-            content:
-              socket.id === socketWhoPlayed
-                ? `Vous avez recruté un ${recrutedUnit.name} avec un ${unitUsed.name}`
-                : `L'adversaire recrute un ${recrutedUnit.name}`,
-            date: new Date().getTime(),
-          },
-        ]);
+        removePlayedUnitFromHand(socketWhoPlayed, unitUsed, false, recrutedUnit);
+        setMessages([...messages, {
+          content:
+            socket.id === socketWhoPlayed
+              ? `Vous avez recruté un ${recrutedUnit.name} avec un ${unitUsed.name}`
+              : `L'adversaire recrute un ${recrutedUnit.name}`,
+          date: new Date().getTime(),
+        }]);
+        // Mercenaire: if a Mercenaire already on terrain, grant free action
+        if (recrutedUnit.name === "Mercenaire") {
+          const mercOnBoard = boardGame.find(
+            (a) =>
+              a.unitOnIt?.name === "Mercenaire" &&
+              players.find((p) => p.socketId === socketWhoPlayed)?.units.some(
+                (u) => u.id === a.unitOnIt?.id
+              )
+          );
+          if (mercOnBoard) {
+            setExtraTurn({ socketId: socketWhoPlayed, areaId: mercOnBoard.id, type: "mercenaire" });
+            return; // don't changeTurn yet
+          }
+        }
         changeTurn(socketWhoPlayed);
       }
     );
@@ -154,17 +186,17 @@ function App() {
     socket.on(
       "gameBoardUnitPosted",
       (socketWhoPlayed: string, areaId: number, unitUsed: UnitInterface) => {
-        console.log("post this unit: ", unitUsed);
         addUnitOnBoardGame(areaId, unitUsed);
         removePlayedUnitFromHand(socketWhoPlayed, unitUsed, true);
         if (socket.id !== socketWhoPlayed) {
-          setMessages([
-            ...messages,
-            {
-              content: `L'adversaire place un ${unitUsed.name} sur le terrain`,
-              date: new Date().getTime(),
-            },
-          ]);
+          setMessages([...messages, {
+            content: `L'adversaire place un ${unitUsed.name} sur le terrain`,
+            date: new Date().getTime(),
+          }]);
+        }
+        // Moine chain: drawn unit deployed to board → no unitOnHold needed, end chain
+        if (moineChainRef.current?.socketId === socketWhoPlayed) {
+          moineChainRef.current = null;
         }
         changeTurn(socketWhoPlayed);
       }
@@ -176,13 +208,7 @@ function App() {
         reinforceUnitOnBoardGame(areaId);
         removePlayedUnitFromHand(socketWhoPlayed, usedUnit, true);
         if (socket.id !== socketWhoPlayed) {
-          setMessages([
-            ...messages,
-            {
-              content: `L'adversaire renforce son ${usedUnit.name}`,
-              date: new Date().getTime(),
-            },
-          ]);
+          setMessages([...messages, { content: `L'adversaire renforce son ${usedUnit.name}`, date: new Date().getTime() }]);
         }
         changeTurn(socketWhoPlayed);
       }
@@ -194,18 +220,45 @@ function App() {
         controlAreaOnBoardGame(areaId, socketWhoPlayed);
         removePlayedUnitFromHand(socketWhoPlayed, usedUnit, false);
         if (socket.id !== socketWhoPlayed) {
-          setMessages([
-            ...messages,
-            {
-              content: `L'adversaire prend le contrôle d'une zone`,
-              date: new Date().getTime(),
-            },
-          ]);
+          setMessages([...messages, { content: `L'adversaire prend le contrôle d'une zone`, date: new Date().getTime() }]);
         }
-        // if (unitHaveAnotherTurn(socketWhoPlayed, areaId, usedUnit.name)) {
-        //   setPlayerReTurn([true, areaId]);
-        //   return;
-        // }
+        // Fantassin: contrôler avec un Fantassin → l'autre Fantassin allié peut agir
+        if (usedUnit.name === "Fantassin" && !fantassinExtraActiveRef.current) {
+          const other = boardGame.find((a) => a.id !== areaId && a.unitOnIt?.name === "Fantassin");
+          if (other) {
+            fantassinExtraActiveRef.current = true;
+            setExtraTurn({ socketId: socketWhoPlayed, areaId: other.id, type: "fantassin" });
+            return;
+          }
+        }
+        // Moine extra-turn: the DRAWN unit just controlled a zone.
+        // Same pattern as unitAttacked: add to unitOnHold, chain only if drawn Moine.
+        const chainCtrl = moineChainRef.current;
+        if (chainCtrl && chainCtrl.socketId === socketWhoPlayed) {
+          moineChainRef.current = null;
+          const actor = players.find((p) => p.socketId === socketWhoPlayed)!;
+          setPlayers(
+            [
+              { ...actor, unitOnHold: [...actor.unitOnHold, { ...chainCtrl.drawnUnit, unvisible: true }] },
+              players.find((p) => p.socketId !== socketWhoPlayed)!,
+            ].sort((a, b) => a.id - b.id)
+          );
+          if (chainCtrl.drawnUnit.name !== "Moine") {
+            changeTurn(socketWhoPlayed);
+            return;
+          }
+          // Drawn Moine controlled → fall through to existing Moine trigger below
+        }
+        // Moine: after control with the Moine itself (or a drawn Moine), grants a free draw+play action
+        if (usedUnit.name === "Moine") {
+          const moineArea = boardGame.find((a) => a.unitOnIt?.name === "Moine" &&
+            players.find((p) => p.socketId === socketWhoPlayed)?.units.some((u) => u.id === a.unitOnIt?.id)
+          );
+          if (moineArea) {
+            setExtraTurn({ socketId: socketWhoPlayed, areaId: moineArea.id, type: "moine" });
+            return;
+          }
+        }
         changeTurn(socketWhoPlayed);
       }
     );
@@ -218,24 +271,20 @@ function App() {
         usedUnit: UnitInterface,
         previousAreaId: number
       ) => {
-        console.log("move an unit: ", usedUnit);
         moveUnitOnBoardGame(areaId, previousAreaId);
         removePlayedUnitFromHand(socketWhoPlayed, usedUnit, false);
         if (socket.id !== socketWhoPlayed) {
-          setMessages([
-            ...messages,
-            {
-              content: `L'adversaire déplace une unité`,
-              date: new Date().getTime(),
-            },
-          ]);
+          setMessages([...messages, { content: `L'adversaire déplace une unité`, date: new Date().getTime() }]);
         }
-        // if (
-        //   unitHaveAnotherTurn(socketWhoPlayed, previousAreaId, usedUnit.name)
-        // ) {
-        //   setPlayerReTurn([true, previousAreaId]);
-        //   return;
-        // }
+        // Fantassin: déplacer un Fantassin → l'autre Fantassin allié peut agir
+        if (usedUnit.name === "Fantassin" && !fantassinExtraActiveRef.current) {
+          const other = boardGame.find((a) => a.id !== areaId && a.id !== previousAreaId && a.unitOnIt?.name === "Fantassin");
+          if (other) {
+            fantassinExtraActiveRef.current = true;
+            setExtraTurn({ socketId: socketWhoPlayed, areaId: other.id, type: "fantassin" });
+            return;
+          }
+        }
         changeTurn(socketWhoPlayed);
       }
     );
@@ -250,26 +299,50 @@ function App() {
       ) => {
         const unitAttacked = boardGame.find((a) => a.id === areaId)!.unitOnIt!;
         attackUnitOnBoardGame(areaId);
-        removePlayedUnitFromHand(
-          socketWhoPlayed,
-          usedUnit,
-          false,
-          undefined,
-          unitAttacked
-        );
+        removePlayedUnitFromHand(socketWhoPlayed, usedUnit, false, undefined, unitAttacked);
         if (socket.id !== socketWhoPlayed) {
-          setMessages([
-            ...messages,
-            {
-              content: `L'adversaire vous attaque !`,
-              date: new Date().getTime(),
-            },
-          ]);
+          setMessages([...messages, { content: `L'adversaire vous attaque !`, date: new Date().getTime() }]);
         }
-        // if (unitHaveAnotherTurn(socketWhoPlayed, ownAreaId, usedUnit.name)) {
-        //   setPlayerReTurn([true, ownAreaId]);
-        //   return;
-        // }
+        // Garde Royale: if the attacked unit is a Garde Royale and the defender has a GR in unitOnHold
+        if (unitAttacked.name === "Garde Royale") {
+          const defender = players.find((p) => p.socketId !== socketWhoPlayed)!;
+          const hasGRInReserve = defender.unitOnHold.some((u) => u.name === "Garde Royale");
+          if (hasGRInReserve) {
+            setGardeRoyaleChoice({ attackerSocketId: socketWhoPlayed, areaId });
+            return;
+          }
+        }
+        // Moine extra-turn: the DRAWN unit just attacked.
+        // Add it to unitOnHold (it was "played" from the hand), then:
+        //   • if the drawn unit was a Moine → fall through so the existing Moine trigger
+        //     fires and chains another draw.
+        //   • if not a Moine → end turn now (no chain).
+        const chain = moineChainRef.current;
+        if (chain && chain.socketId === socketWhoPlayed) {
+          moineChainRef.current = null;
+          const actor = players.find((p) => p.socketId === socketWhoPlayed)!;
+          setPlayers(
+            [
+              { ...actor, unitOnHold: [...actor.unitOnHold, { ...chain.drawnUnit, unvisible: true }] },
+              players.find((p) => p.socketId !== socketWhoPlayed)!,
+            ].sort((a, b) => a.id - b.id)
+          );
+          if (chain.drawnUnit.name !== "Moine") {
+            changeTurn(socketWhoPlayed);
+            return;
+          }
+          // Drawn Moine attacked → fall through to the Moine trigger below for chain
+        }
+        // Moine: after attack with the Moine itself (or a drawn Moine), grants a free draw+play action
+        if (usedUnit.name === "Moine") {
+          const moineArea = boardGame.find(
+            (a) => a.id === ownAreaId && a.unitOnIt?.name === "Moine"
+          );
+          if (moineArea) {
+            setExtraTurn({ socketId: socketWhoPlayed, areaId: moineArea.id, type: "moine" });
+            return;
+          }
+        }
         changeTurn(socketWhoPlayed);
       }
     );
@@ -282,42 +355,321 @@ function App() {
         usedUnit: UnitInterface,
         ownAreaId: number
       ) => {
-        // console.log(areaId);
-        // console.log(ownAreaId);
-        console.log(boardGame.find((a) => a.id === areaId));
         const unitAttacked = boardGame.find((a) => a.id === areaId)!.unitOnIt!;
-        const unitWhoAttack = boardGame.find((a) => a.id === ownAreaId)!
-          .unitOnIt!;
-        //suppress 1 of ennemi and 1 of ally
+        const unitWhoAttack = boardGame.find((a) => a.id === ownAreaId)!.unitOnIt!;
         attackUnitOnBoardGame(areaId, ownAreaId);
-        //add to ennemi graveyard, ally unitOnHold but also ally graveyard
-        removePlayedUnitFromHand(
-          socketWhoPlayed,
-          usedUnit,
-          false,
-          undefined,
-          unitAttacked,
-          unitWhoAttack
-        );
-        setMessages([
-          ...messages,
-          {
-            content:
-              socket.id === socketWhoPlayed
-                ? `Vous attaquez le Piquier ennemi et perdez un ${unitWhoAttack.name}`
-                : `L'adversaire vous attaque et perd un ${unitWhoAttack.name}`,
-            date: new Date().getTime(),
-          },
-        ]);
-
-        // if (unitHaveAnotherTurn(socketWhoPlayed, ownAreaId, usedUnit.name)) {
-        //   setPlayerReTurn(true);
-        //   return;
-        // }
+        removePlayedUnitFromHand(socketWhoPlayed, usedUnit, false, undefined, unitAttacked, unitWhoAttack);
+        setMessages([...messages, {
+          content:
+            socket.id === socketWhoPlayed
+              ? `Vous attaquez le Piquier ennemi et perdez un ${unitWhoAttack.name}`
+              : `L'adversaire vous attaque et perd un ${unitWhoAttack.name}`,
+          date: new Date().getTime(),
+        }]);
         changeTurn(socketWhoPlayed);
       }
     );
-    // console.log("le boardgame: ", boardGame);
+
+    // Cavalerie: move then attack (single setBoardGame to avoid stale closure)
+    socket.on(
+      "cavalerieActed",
+      (
+        socketWhoPlayed: string,
+        fromAreaId: number,
+        toAreaId: number | null,
+        attackAreaId: number | null,
+        usedUnit: UnitInterface
+      ) => {
+        const unitAttacked = attackAreaId !== null
+          ? boardGame.find((a) => a.id === attackAreaId)?.unitOnIt ?? null
+          : null;
+        setBoardGame((prev) => {
+          let board = prev;
+          if (toAreaId !== null) {
+            const unitMoved = board.find((a) => a.id === fromAreaId)!.unitOnIt!;
+            board = board.map((a) => {
+              if (a.id === fromAreaId) return { ...a, unitOnIt: null };
+              if (a.id === toAreaId) return { ...a, unitOnIt: unitMoved };
+              return a;
+            });
+          }
+          if (attackAreaId !== null) {
+            const attacked = board.find((a) => a.id === attackAreaId)!.unitOnIt!;
+            board = board.map((a) => {
+              if (a.id === attackAreaId) {
+                return attacked.reinforce > 1
+                  ? { ...a, unitOnIt: { ...attacked, reinforce: attacked.reinforce - 1 } }
+                  : { ...a, unitOnIt: null };
+              }
+              return a;
+            });
+          }
+          return board.map((a) => ({ ...a, canPostOn: false, canAttack: false }));
+        });
+        removePlayedUnitFromHand(
+          socketWhoPlayed, usedUnit, false,
+          undefined, unitAttacked ?? undefined
+        );
+        setMessages([...messages, {
+          content: socket.id === socketWhoPlayed
+            ? `Vous avez joué la Cavalerie`
+            : `L'adversaire joue sa Cavalerie`,
+          date: new Date().getTime(),
+        }]);
+        changeTurn(socketWhoPlayed);
+      }
+    );
+
+    // Soldat: attack then optionally move (single setBoardGame)
+    socket.on(
+      "soldatActed",
+      (
+        socketWhoPlayed: string,
+        fromAreaId: number,
+        attackAreaId: number,
+        toAreaId: number | null,
+        usedUnit: UnitInterface
+      ) => {
+        const unitAttacked = boardGame.find((a) => a.id === attackAreaId)!.unitOnIt!;
+        setBoardGame((prev) => {
+          let board = prev;
+          const attacked = board.find((a) => a.id === attackAreaId)!.unitOnIt!;
+          board = board.map((a) => {
+            if (a.id === attackAreaId) {
+              return attacked.reinforce > 1
+                ? { ...a, unitOnIt: { ...attacked, reinforce: attacked.reinforce - 1 } }
+                : { ...a, unitOnIt: null };
+            }
+            return a;
+          });
+          if (toAreaId !== null) {
+            const unitMoved = board.find((a) => a.id === fromAreaId)!.unitOnIt!;
+            board = board.map((a) => {
+              if (a.id === fromAreaId) return { ...a, unitOnIt: null };
+              if (a.id === toAreaId) return { ...a, unitOnIt: unitMoved };
+              return a;
+            });
+          }
+          return board.map((a) => ({ ...a, canPostOn: false, canAttack: false }));
+        });
+        removePlayedUnitFromHand(socketWhoPlayed, usedUnit, false, undefined, unitAttacked);
+        setMessages([...messages, {
+          content: socket.id === socketWhoPlayed
+            ? `Vous avez joué le Soldat`
+            : `L'adversaire joue son Soldat`,
+          date: new Date().getTime(),
+        }]);
+        changeTurn(socketWhoPlayed);
+      }
+    );
+
+    // Berserk: chain of moves with reinforce sacrifice (single setBoardGame)
+    socket.on(
+      "berserkActed",
+      (
+        socketWhoPlayed: string,
+        moves: number[],
+        sacrifices: number,
+        usedUnit: UnitInterface
+      ) => {
+        setBoardGame((prev) => {
+          let board = prev;
+          for (let i = 1; i < moves.length; i++) {
+            const unitMoved = board.find((a) => a.id === moves[i - 1])!.unitOnIt!;
+            board = board.map((a) => {
+              if (a.id === moves[i - 1]) return { ...a, unitOnIt: null };
+              if (a.id === moves[i]) return { ...a, unitOnIt: unitMoved };
+              return a;
+            });
+          }
+          if (sacrifices > 0 && moves.length > 1) {
+            const finalAreaId = moves[moves.length - 1];
+            board = board.map((a) => {
+              if (a.id === finalAreaId && a.unitOnIt) {
+                return { ...a, unitOnIt: { ...a.unitOnIt, reinforce: Math.max(1, a.unitOnIt.reinforce - sacrifices) } };
+              }
+              return a;
+            });
+          }
+          return board.map((a) => ({ ...a, canPostOn: false, canAttack: false }));
+        });
+        removePlayedUnitFromHand(socketWhoPlayed, usedUnit, false);
+        setMessages([...messages, {
+          content: socket.id === socketWhoPlayed
+            ? `Berserk : ${moves.length - 1} déplacement(s), ${sacrifices} renfort(s) sacrifié(s)`
+            : `L'adversaire joue son Berserk (${moves.length - 1} déplacements)`,
+          date: new Date().getTime(),
+        }]);
+        changeTurn(socketWhoPlayed);
+      }
+    );
+
+    // Lancier: charge (attack + move to intermediate cell)
+    socket.on(
+      "lancierActed",
+      (
+        socketWhoPlayed: string,
+        fromAreaId: number,
+        moveToAreaId: number | null,
+        attackAreaId: number,
+        usedUnit: UnitInterface
+      ) => {
+        const unitAttacked = boardGame.find((a) => a.id === attackAreaId)?.unitOnIt ?? null;
+        setBoardGame((prev) => {
+          let board = prev;
+          // Attack the target
+          const attacked = board.find((a) => a.id === attackAreaId)?.unitOnIt;
+          if (attacked) {
+            board = board.map((a) => {
+              if (a.id === attackAreaId) {
+                return attacked.reinforce > 1
+                  ? { ...a, unitOnIt: { ...attacked, reinforce: attacked.reinforce - 1 } }
+                  : { ...a, unitOnIt: null };
+              }
+              return a;
+            });
+          }
+          // Move Lancier to intermediate position (cell just in front of enemy)
+          if (moveToAreaId !== null) {
+            const lancierUnit = board.find((a) => a.id === fromAreaId)?.unitOnIt;
+            if (lancierUnit) {
+              board = board.map((a) => {
+                if (a.id === fromAreaId) return { ...a, unitOnIt: null };
+                if (a.id === moveToAreaId) return { ...a, unitOnIt: lancierUnit };
+                return a;
+              });
+            }
+          }
+          return board.map((a) => ({ ...a, canPostOn: false, canAttack: false }));
+        });
+        if (unitAttacked) {
+          removePlayedUnitFromHand(socketWhoPlayed, usedUnit, false, undefined, unitAttacked);
+        }
+        setMessages([...messages, {
+          content: socket.id === socketWhoPlayed
+            ? `Vous avez chargé avec le Lancier`
+            : `L'adversaire charge avec son Lancier`,
+          date: new Date().getTime(),
+        }]);
+        changeTurn(socketWhoPlayed);
+      }
+    );
+
+    // Porte-Étendard: move an ally
+    socket.on(
+      "portEtendardActed",
+      (
+        socketWhoPlayed: string,
+        _bannerAreaId: number,
+        allyFromAreaId: number,
+        allyToAreaId: number,
+        usedUnit: UnitInterface
+      ) => {
+        moveUnitOnBoardGame(allyToAreaId, allyFromAreaId);
+        removePlayedUnitFromHand(socketWhoPlayed, usedUnit, false);
+        setMessages([...messages, {
+          content: socket.id === socketWhoPlayed
+            ? `Vous avez déplacé un allié avec le Porte-Étendard`
+            : `L'adversaire déplace un allié avec son Porte-Étendard`,
+          date: new Date().getTime(),
+        }]);
+        changeTurn(socketWhoPlayed);
+      }
+    );
+
+    // Capitaine: ally attacks
+    socket.on(
+      "capitaineActed",
+      (
+        socketWhoPlayed: string,
+        _captainAreaId: number,
+        _allyAreaId: number,
+        attackAreaId: number,
+        usedUnit: UnitInterface
+      ) => {
+        const unitAttacked = boardGame.find((a) => a.id === attackAreaId)!.unitOnIt!;
+        attackUnitOnBoardGame(attackAreaId);
+        removePlayedUnitFromHand(socketWhoPlayed, usedUnit, false, undefined, unitAttacked);
+        setMessages([...messages, {
+          content: socket.id === socketWhoPlayed
+            ? `Vous avez fait attaquer un allié avec le Capitaine`
+            : `L'adversaire fait attaquer un allié avec son Capitaine`,
+          date: new Date().getTime(),
+        }]);
+        changeTurn(socketWhoPlayed);
+      }
+    );
+
+    // Fantassin: second fantassin activated — no immediate board change needed
+    socket.on("fantassinSecondActivated", () => {});
+
+    // Mercenaire: free turn granted — no immediate board change needed
+    socket.on("mercenaireFreeTurnGranted", () => {});
+
+    // Garde Royale: defender sacrifices from unitOnHold instead of losing board reinforce
+    socket.on(
+      "gardeRoyaleSacrificed",
+      (
+        socketWhoPlayed: string, // the DEFENDER who chose to sacrifice
+        _areaId: number,
+        _usedUnit: UnitInterface
+      ) => {
+        // Remove specifically a Garde Royale from defender's unitOnHold
+        const defender = players.find((p) => p.socketId === socketWhoPlayed)!;
+        const grIdx = defender.unitOnHold.findIndex((u) => u.name === "Garde Royale");
+        if (grIdx !== -1) {
+          const sacrificed = defender.unitOnHold[grIdx];
+          const newUnitOnHold = [...defender.unitOnHold];
+          newUnitOnHold.splice(grIdx, 1);
+          const updatedDefender = {
+            ...defender,
+            unitOnHold: newUnitOnHold,
+            graveyard: [...defender.graveyard, sacrificed],
+          };
+          const attacker = players.find((p) => p.socketId !== socketWhoPlayed)!;
+          setPlayers([attacker, updatedDefender].sort((a, b) => a.id - b.id));
+        }
+        setGardeRoyaleChoice(null);
+        changeTurn(players.find((p) => p.socketId !== socketWhoPlayed)!.socketId);
+      }
+    );
+
+    // Moine: both clients learn which unit was drawn and update the bag
+    socket.on(
+      "moineUnitDrawn",
+      (
+        socketWhoPlayed: string,
+        drawnUnit: UnitInterface,
+        moineAreaId: number
+      ) => {
+        // Remove the drawn unit from the player's bag (or unitOnHold if bag is empty)
+        const player = players.find((p) => p.socketId === socketWhoPlayed)!;
+        const bagIdx = player.bag.findIndex((u) => u.id === drawnUnit.id);
+        let newBag = [...player.bag];
+        let newHold = [...player.unitOnHold];
+        if (bagIdx !== -1) {
+          newBag.splice(bagIdx, 1);
+        } else {
+          // Bag was empty, drawn from unitOnHold pool
+          const holdIdx = player.unitOnHold.findIndex((u) => u.id === drawnUnit.id);
+          if (holdIdx !== -1) newHold.splice(holdIdx, 1);
+        }
+        const updatedPlayer = { ...player, bag: newBag, unitOnHold: newHold };
+        const other = players.find((p) => p.socketId !== socketWhoPlayed)!;
+        setPlayers([updatedPlayer, other].sort((a, b) => a.id - b.id));
+        setMessages([...messages, {
+          content: socket.id === socketWhoPlayed
+            ? `Moine : vous piochez un ${drawnUnit.name}`
+            : `Le Moine adverse pioche une pièce`,
+          date: new Date().getTime(),
+        }]);
+        // Track the drawn unit so we can add it to unitOnHold after use
+        moineChainRef.current = { socketId: socketWhoPlayed, areaId: moineAreaId, drawnUnit };
+        // Grant the extra turn with the drawn unit info
+        setExtraTurn({ socketId: socketWhoPlayed, areaId: moineAreaId, type: "moine", drawnUnit });
+      }
+    );
+
     return () => {
       socket.off("unitSelected");
       socket.off("launchGame");
@@ -332,6 +684,16 @@ function App() {
       socket.off("gameBoardUnitMoved");
       socket.off("unitAttacked");
       socket.off("sacrificeForUnitAttack");
+      socket.off("cavalerieActed");
+      socket.off("soldatActed");
+      socket.off("berserkActed");
+      socket.off("lancierActed");
+      socket.off("portEtendardActed");
+      socket.off("capitaineActed");
+      socket.off("fantassinSecondActivated");
+      socket.off("mercenaireFreeTurnGranted");
+      socket.off("gardeRoyaleSacrificed");
+      socket.off("moineUnitDrawn");
     };
   }, [players, boardGame]);
 
@@ -367,6 +729,37 @@ function App() {
       }
     }
   }, [nbTurn, startGame]);
+
+  // Auto-pass when current player has no hand AND no bag tokens
+  useEffect(() => {
+    if (!startGame || !socketTurn) return;
+    const currentPlayer = players.find((p) => p.socketId === socketTurn);
+    if (!currentPlayer) return;
+    if (currentPlayer.hand.length > 0) return; // still has pieces to play
+    // Only the affected player's client acts
+    if (socket.id !== currentPlayer.socketId) return;
+
+    const otherPlayer = players.find((p) => p.socketId !== socketTurn)!;
+
+    if (otherPlayer.hand.length === 0) {
+      // Both hands empty simultaneously
+      if (currentPlayer.bag.length === 0 && otherPlayer.bag.length === 0) {
+        // Fully depleted mid-round → force a hand refill (player 0 emits)
+        if (socket.id === players[0].socketId) {
+          socket.emit("makePlayersHand", players);
+        }
+      }
+      // Normal end-of-round: the nbTurn % 6 useEffect handles the refill — do nothing
+      return;
+    }
+
+    // Only this player has no hand pieces left → auto-pass silently
+    setMessages((prev) => [
+      ...prev,
+      { content: "Vous n'avez plus de jetons — passage automatique", date: new Date().getTime() },
+    ]);
+    socket.emit("pass", { id: 0, name: "auto-pass", nb: 0, cap: "" });
+  }, [socketTurn, players]);
 
   /**
    * Update the player username and save it to localStorage for next uses
@@ -440,9 +833,8 @@ function App() {
    * send info player stole init in else
    */
   const changeTurn = (previousTurnSocket: string) => {
-    // if (playerReTurn[0]) {
-    //   setPlayerReTurn([false, null]);
-    // }
+    fantassinExtraActiveRef.current = false;
+    setExtraTurn(null);
     setNbTurn(nbTurn + 1);
     setSocketTurn(
       players.find((player) => player.socketId !== previousTurnSocket)!.socketId
@@ -469,12 +861,13 @@ function App() {
     )!;
     // console.log("player who played: ", playerWhoPlayed);
     // console.log(unitUsed);
-    playerWhoPlayed.hand.splice(
-      playerWhoPlayed.hand.findIndex((unit) => unit.id === unitUsed.id),
-      1
-    );
-    if (!postedOnGround) {
-      playerWhoPlayed.unitOnHold.push({ ...unitUsed, unvisible: true });
+    // Guard: unit may not be in hand if it's an extra-turn action (Fantassin, Mercenaire)
+    const handIdx = playerWhoPlayed.hand.findIndex((unit) => unit.id === unitUsed.id);
+    if (handIdx !== -1) {
+      playerWhoPlayed.hand.splice(handIdx, 1);
+      if (!postedOnGround) {
+        playerWhoPlayed.unitOnHold.push({ ...unitUsed, unvisible: true });
+      }
     }
 
     if (unitRecruted) {
@@ -680,7 +1073,20 @@ function App() {
               socket={socket}
               socketTurn={socketTurn}
               updateMessages={updateMessages}
-              // playerReTurn={playerReTurn}
+              extraTurn={extraTurn}
+              clearExtraTurn={() => setExtraTurn(null)}
+              gardeRoyaleChoice={gardeRoyaleChoice}
+              onGardeRoyaleSacrifice={(areaId) => {
+                socket.emit("gardeRoyaleSacrifice", areaId, {} as UnitInterface);
+              }}
+              onGardeRoyaleDecline={(areaId) => {
+                // Defender declines — normal attack applies, turn advances
+                attackUnitOnBoardGame(areaId);
+                setGardeRoyaleChoice(null);
+                if (gardeRoyaleChoice) {
+                  changeTurn(gardeRoyaleChoice.attackerSocketId);
+                }
+              }}
             />
             {!inGameSelection &&
               (!startGame ? (

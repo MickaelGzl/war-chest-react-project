@@ -105,6 +105,8 @@ io.on("connection", (socket) => {
     const connectedSockets = Array.from(
       io.sockets.adapter.rooms.get(joinedRoom)!
     );
+    // Randomly assign who is player 1 (picks first and plays first)
+    if (Math.random() < 0.5) connectedSockets.reverse();
     io.to(joinedRoom).emit("join", name, arrayOfUnits, connectedSockets);
   });
 
@@ -226,6 +228,134 @@ io.on("connection", (socket) => {
         usedUnit,
         areaIdWithOwnUnit
       );
+    }
+  );
+
+  // Cavalerie: move then attack (both optional)
+  socket.on(
+    "cavalerieAction",
+    (
+      fromAreaId: number,
+      toAreaId: number | null,
+      attackAreaId: number | null,
+      usedUnit: UnitInterface
+    ) => {
+      const room = getSocketRoom(socket);
+      io.to(room).emit("cavalerieActed", socket.id, fromAreaId, toAreaId, attackAreaId, usedUnit);
+    }
+  );
+
+  // Soldat: attack then optionally move
+  socket.on(
+    "soldatAction",
+    (
+      fromAreaId: number,
+      attackAreaId: number,
+      toAreaId: number | null,
+      usedUnit: UnitInterface
+    ) => {
+      const room = getSocketRoom(socket);
+      io.to(room).emit("soldatActed", socket.id, fromAreaId, attackAreaId, toAreaId, usedUnit);
+    }
+  );
+
+  // Berserk: multiple moves with reinforce sacrifice
+  socket.on(
+    "berserkAction",
+    (
+      moves: number[],
+      sacrifices: number,
+      usedUnit: UnitInterface
+    ) => {
+      const room = getSocketRoom(socket);
+      io.to(room).emit("berserkActed", socket.id, moves, sacrifices, usedUnit);
+    }
+  );
+
+  // Porte-Étendard: move an ally
+  socket.on(
+    "portEtendardAction",
+    (
+      bannerAreaId: number,
+      allyFromAreaId: number,
+      allyToAreaId: number,
+      usedUnit: UnitInterface
+    ) => {
+      const room = getSocketRoom(socket);
+      io.to(room).emit("portEtendardActed", socket.id, bannerAreaId, allyFromAreaId, allyToAreaId, usedUnit);
+    }
+  );
+
+  // Capitaine: have an ally attack
+  socket.on(
+    "capitaineAction",
+    (
+      captainAreaId: number,
+      allyAreaId: number,
+      attackAreaId: number,
+      usedUnit: UnitInterface
+    ) => {
+      const room = getSocketRoom(socket);
+      io.to(room).emit("capitaineActed", socket.id, captainAreaId, allyAreaId, attackAreaId, usedUnit);
+    }
+  );
+
+  // Moine: broadcast which unit was drawn from the bag (sync both clients)
+  socket.on(
+    "moineDrawBroadcast",
+    (drawnUnit: UnitInterface, moineAreaId: number) => {
+      const room = getSocketRoom(socket);
+      io.to(room).emit("moineUnitDrawn", socket.id, drawnUnit, moineAreaId);
+    }
+  );
+
+  // Garde Royale: sacrifice from unitOnHold instead of losing reinforce
+  socket.on(
+    "gardeRoyaleSacrifice",
+    (
+      areaId: number,
+      usedUnit: UnitInterface
+    ) => {
+      const room = getSocketRoom(socket);
+      io.to(room).emit("gardeRoyaleSacrificed", socket.id, areaId, usedUnit);
+    }
+  );
+
+  // Mercenaire: free action after recruit if mercenaire on terrain
+  socket.on(
+    "mercenaireFreeTurn",
+    (
+      mercAreaId: number,
+      usedUnit: UnitInterface
+    ) => {
+      const room = getSocketRoom(socket);
+      io.to(room).emit("mercenaireFreeTurnGranted", socket.id, mercAreaId, usedUnit);
+    }
+  );
+
+  // Lancier: charge (attack + move to intermediate cell)
+  socket.on(
+    "lancierAction",
+    (
+      fromAreaId: number,
+      moveToAreaId: number | null,
+      attackAreaId: number,
+      usedUnit: UnitInterface
+    ) => {
+      const room = getSocketRoom(socket);
+      io.to(room).emit("lancierActed", socket.id, fromAreaId, moveToAreaId, attackAreaId, usedUnit);
+    }
+  );
+
+  // Fantassin second deploy: trigger second fantassin on board
+  socket.on(
+    "fantassinSecond",
+    (
+      secondFantAreaId: number,
+      usedUnit: UnitInterface
+    ) => {
+      const room = getSocketRoom(socket);
+      io.to(room).emit("fantassinSecondActivated", socket.id, secondFantAreaId, usedUnit);
     }
   );
 

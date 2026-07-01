@@ -39,11 +39,9 @@ function GameSelection(props: GameSelectionPropsType) {
               style={{
                 backgroundImage: `url("${cardPath}${unit.name
                   .toLowerCase()
-                  .replaceAll(" ", "_")}.gif")`,
+                  .replaceAll(" ", "_")}.jpg")`,
               }}
             >
-              <span>{unit.name}</span>
-              <span>{`x${unit.nb}`}</span>
               <span>{unit.cap}</span>
             </div>
           ))}

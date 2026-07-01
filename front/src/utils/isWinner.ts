@@ -1,7 +1,7 @@
 import { AreaInterface } from "../@types/interfaces";
 
 function playerWin(boardgame: AreaInterface[], i: number) {
-  return boardgame.filter((b) => b.controlledBy === i).length === 6;
+  return boardgame.filter((b) => b.controlledBy === i).length >= 6;
 }
 
 export function isWinner(boardgame: AreaInterface[]) {
